@@ -100,6 +100,9 @@ if [[ -x "$PROJECT/venv/bin/python" ]]; then PYTHON="$PROJECT/venv/bin/python"; 
 if ! git diff --quiet || ! git diff --cached --quiet; then
   die "В git-рабочем дереве есть tracked-изменения. Сначала проверь: git -C '$PROJECT' status --short"
 fi
+if [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
+  die "Есть неотслеживаемые файлы. Проверь git status --short; безопасное обновление остановлено."
+fi
 
 # Determine the newest stable vX.Y.Z tag from origin; ignore prerelease tags.
 log "Получаю список релизов..."
