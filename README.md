@@ -1,47 +1,59 @@
-# Amnezia Web Panel Updater
+# Amnezia Panel Updater
 
-One-command updater for an existing **Python/venv** installation of [PRVTPRO/Amnezia-Web-Panel](https://github.com/PRVTPRO/Amnezia-Web-Panel).
+Единый скрипт для обновления уже установленной **Amnezia Web Panel** из исходников Python.
 
-> This does not install the panel from scratch and does not manage the standalone Linux binary. Use only for a source checkout containing `app.py`, `.git`, and (normally) `venv/`.
+- Репозиторий панели: [PRVTPRO/Amnezia-Web-Panel](https://github.com/PRVTPRO/Amnezia-Web-Panel)
+- Этот репозиторий: [TMN88/amnezia-panel-updater](https://github.com/TMN88/amnezia-panel-updater)
+- Поддерживается Python-установка с Git checkout, `app.py` и виртуальным окружением `venv`.
+- Отдельный бинарный файл `Amnezia-Web-Panel-Linux` этим скриптом не обновляется.
 
-## Update command
+## Обновление одной командой
 
-Run as root on the VPS:
+Запустить на VPS от пользователя `root`:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/TMN88/amnezia-panel-updater/main/update.sh)
 ```
 
-Alternative:
-
-```bash
-wget -qO- https://raw.githubusercontent.com/TMN88/amnezia-panel-updater/main/update.sh | bash
-```
-
-If the checkout is not in `/root/Amnezia-Web-Panel`, specify its path:
+Если каталог проекта отличается от стандартного `/root/Amnezia-Web-Panel`, укажи его явно:
 
 ```bash
 PROJECT_DIR=/opt/Amnezia-Web-Panel bash <(curl -fsSL https://raw.githubusercontent.com/TMN88/amnezia-panel-updater/main/update.sh)
 ```
 
-## What it does
+## Что делает скрипт
 
-- Looks for the existing checkout and verifies the Git origin.
-- Fetches tags and selects the newest stable `vX.Y.Z` release tag.
-- Backs up the project (excluding Git metadata and venv), `data.json`, commit reference, and runtime environment under `/root/Amnezia-Web-Panel-backups/`.
-- Installs the release's Python dependencies and runs `pip check` plus `py_compile`.
-- Restarts only the Python panel process in the project directory and checks `http://127.0.0.1:5000/login`.
-- Attempts to return to the prior commit and relaunch the panel if validation fails.
-- Does **not** stop/recreate Docker containers or intentionally modify `data.json`.
+1. Находит каталог проекта и проверяет Git origin.
+2. Получает теги оригинального репозитория и выбирает последний стабильный тег формата `vX.Y.Z`.
+3. Создаёт резервную копию проекта, `data.json`, текущего commit и окружения запуска.
+4. Переключает код на выбранный релиз и устанавливает зависимости из `requirements.txt`.
+5. Выполняет `pip check` и проверку компиляции `app.py`.
+6. Перезапускает только Python-процесс панели.
+7. Проверяет доступность `http://127.0.0.1:5000/login`.
+8. При ошибке пытается вернуть предыдущий commit, зависимости и запустить прежнюю версию.
 
-## Logs and backups
+Скрипт прекращает обновление, если обнаруживает локальные изменения или неотслеживаемые файлы в Git-каталоге, чтобы не затереть пользовательские изменения.
 
-- Log: `/var/log/amnezia-panel-updater.log`
-- Backups: `/root/Amnezia-Web-Panel-backups/panel-backup-<timestamp>/`
+## Данные и контейнеры
 
-## Important limits
+- Файл `data.json` отдельно копируется в резервную папку; скрипт не предназначен для его изменения.
+- Docker-контейнеры AmneziaWG не останавливаются, не перезапускаются и не пересоздаются.
+- Обновление не затрагивает другие каталоги панелей.
+- Перед обновлением сохраняется резервная копия.
 
-- Run on a supported Linux VPS with Bash, Git, Python 3, curl, tar, and the existing virtual environment.
-- The script assumes the panel listens on local TCP port 5000 and exposes `/login`. If your installation uses a different port, review the script before use.
-- It refuses to update if tracked Git files have local modifications.
-- Keep your own off-server backup for critical production data. Test on one VPS before updating the rest.
+## Где искать резервные копии и лог
+
+- Резервные копии: `/root/Amnezia-Web-Panel-backups/`
+- Лог обновления: `/var/log/amnezia-panel-updater.log`
+
+## Требования и ограничения
+
+- Linux VPS, запуск от `root`.
+- Команды: Bash, Git, Python 3, tar и curl.
+- Существующий Git checkout панели с `app.py` и виртуальным окружением `venv`.
+- Панель должна отвечать на локальном порту `5000` по адресу `/login`.
+- Скрипт обновляет код до стабильного релизного тега, а не до произвольного состояния ветки `main`.
+
+## Статус
+
+Первое реальное обновление проверено 18 октября 2026 года: панель обновлена с `v1.7.3` до `v1.7.6`; проверка `/login` прошла успешно. Контейнеры `amnezia-awg*` не перезапускались.
