@@ -20,7 +20,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 mkdir -p "$BACKUP_ROOT" "$LOG_DIR"
 touch "$LOG_FILE"
 
-for cmd in git python3 tar curl ss; do have "$cmd" || die "Не найдена обязательная команда: $cmd"; done
+for cmd in git python3 tar curl; do have "$cmd" || die "Не найдена обязательная команда: $cmd"; done
 
 # Resolve project directory. Override with PROJECT_DIR=/path if needed.
 PROJECT="${PROJECT_DIR:-$DEFAULT_PROJECT}"
@@ -111,11 +111,11 @@ PREVIOUS_TAG="$(git describe --tags --exact-match HEAD 2>/dev/null || echo 'не
 log "Текущая версия: $PREVIOUS_TAG ($PREVIOUS_COMMIT)"
 log "Целевая версия: $TARGET"
 
-if git merge-base --is-ancestor "$(git rev-parse "$TARGET")" HEAD 2>/dev/null; then
-  : # Tag already reachable; handled by equality check below.
-fi
 if [[ "$(git rev-parse "$TARGET")" == "$PREVIOUS_COMMIT" ]]; then
-  log "Уже установлена последняя версия. Проверю доступность панели и завершу."
+  log "Уже установлена последняя версия."
+  CODE="$(curl --silent --output /dev/null --max-time 5 --write-out '%{http_code}' http://127.0.0.1:5000/login 2>/dev/null || true)"
+  [[ "$CODE" =~ ^[1-4][0-9][0-9]$ ]] || die "Версия актуальна, но /login не отвечает на 127.0.0.1:5000. Лог: $LOG_FILE"
+  log "Панель отвечает на HTTP ($CODE). Ничего не менял."
   exit 0
 fi
 
@@ -134,7 +134,6 @@ chmod 600 "$BACKUP/runtime-env.json"
 # Remember Docker container state; we do not stop/recreate any containers.
 if have docker; then docker ps --format '{{.Names}} {{.Status}}' | grep -E 'amnezia-awg' > "$BACKUP/vpn-containers.txt" || true; fi
 
-STARTED_NEW=0
 rollback() {
   local reason="$1"
   log "Обновление не прошло проверку: $reason"
@@ -142,7 +141,7 @@ rollback() {
   mapfile -t pids < <(find_panel_pids)
   for p in "${pids[@]:-}"; do kill "$p" 2>/dev/null || true; done
   sleep 2
-  git -C "$PROJECT" switch --detach "$PREVIOUS_COMMIT" || log "Не удалось автоматически вернуть исходный commit."
+  git -C "$PROJECT" switch --detach "$PREVIOUS_COMMIT" || die "КРИТИЧНО: автоматический откат Git не удался. Проверь проект вручную: $PROJECT"
   if [[ -f "$PROJECT/requirements.txt" && -x "$PROJECT/venv/bin/python" ]]; then
     "$PROJECT/venv/bin/python" -m pip install -r "$PROJECT/requirements.txt" >> "$LOG_FILE" 2>&1 || log "Зависимости для отката восстановить не удалось."
   fi
